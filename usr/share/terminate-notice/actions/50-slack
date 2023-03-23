@@ -1,9 +1,10 @@
 #!/usr/bin/sh
+VERSION="#TAG# - #TAG_DATE#"
 
 # shellcheck disable=SC1091
 . /usr/share/terminate-notice/helpers
 
-start_action "$(basename "$0")"
+start_action "$(basename "$0")-$VERSION"
 
 eval "$(load_config slack)"
 
@@ -12,18 +13,18 @@ debug Checking API endpoint is set
 _slack_webhook="$(first_of "$SLACK_WEBHOOK" "$slack_webhook" "")"
 if [ -z "$_slack_webhook" ]
 then
-    error 2 "$(basename "$0")" "No _slack_webhook defined"
+    error 2 "$(basename "$0")-$VERSION" "No _slack_webhook defined"
 fi
 
 debug Checking _HOSTNAME is set
 if [ -z "${_HOSTNAME}" ]
 then
-    error 2 "$(basename "$0")" "No _HOSTNAME defined"
+    error 2 "$(basename "$0")-$VERSION" "No _HOSTNAME defined"
 fi
 
 if [ "$VERIFY" = "1" ]
 then
-    echo "Action $(basename "$0") - INFO: Verified at start."
+    echo "Action $(basename "$0")-$VERSION - INFO: Verified at start."
     exit 0
 fi
 
@@ -35,11 +36,11 @@ do
     _POST_COUNTER=$((_POST_COUNTER+1))
     if [ $_POST_MESSAGE_SENT -eq 0 ] && [ $_POST_COUNTER -eq 1 ]
     then
-        echo "Action $(basename "$0") - WARNING: Waiting for the Slack Webhook to become available."
+        echo "Action $(basename "$0")-$VERSION - WARNING: Waiting for the Slack Webhook to become available."
         _POST_MESSAGE_SENT=1
     elif [ $_POST_MESSAGE_SENT -eq 1 ] && [ $_POST_COUNTER -eq 5 ]
     then
-        error 2 "$(basename "$0")" "Failed to send"
+        error 2 "$(basename "$0")-$VERSION" "Failed to send"
         exit 5
     fi
     sleep 2
