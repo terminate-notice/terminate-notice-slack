@@ -1,14 +1,24 @@
 #!/usr/bin/sh
+# This will look odd in the version control, but this will be set to the tag identifier
+# and date it was tagged in CI/CD.
 VERSION="#TAG# - #TAG_DATE#"
 
+# Load the helper function used later on.
 # shellcheck disable=SC1091
 . /usr/share/terminate-notice/helpers
 
+# This announces that the action has been triggered to syslog.
 start_action "$(basename "$0")-$VERSION"
 
+# This tries to read the config then checks to see whether the load failed
 eval "$(load_config slack)"
+if [ "$FAILED" -eq 1 ]
+then
+    error 2 "$(basename "$0")-$VERSION" Failed to load config
+fi
 
-debug Checking API endpoint is set
+# Check all your required variables have been defined
+debug "$(basename "$0")-$VERSION" Checking API endpoint is set
 # shellcheck disable=SC2154
 _slack_webhook="$(first_of "$SLACK_WEBHOOK" "$slack_webhook" "")"
 if [ -z "$_slack_webhook" ]
@@ -16,31 +26,39 @@ then
     error 2 "$(basename "$0")-$VERSION" "No _slack_webhook defined"
 fi
 
-debug Checking _HOSTNAME is set
+debug "$(basename "$0")-$VERSION" Checking _HOSTNAME is set
 if [ -z "${_HOSTNAME}" ]
 then
-    error 2 "$(basename "$0")-$VERSION" "No _HOSTNAME defined"
+    error 2 "$(basename "$0")-$VERSION" No _HOSTNAME defined
 fi
 
-if [ "$VERIFY" = "1" ]
+# If VERIFY=1 then this will announce that the variables were loaded OK on first run, and then exit.
+verified "$(basename "$0")-$VERSION"
+
+# Now you can actually run the action, because all the variables have been defined and tested.
+if [ "${TERMINATE_NOTICE_RECEIVED:-0}" -eq 1 ]
 then
-    echo "Action $(basename "$0")-$VERSION - INFO: Verified at start."
-    exit 0
+    _MESSAGE=terminate-notice
+elif [ "${REBALANCE_RECOMMENDATION_RECEIVED:-0}" -eq 1 ]
+then
+    _MESSAGE=rebalance-recommendation
+else
+    _MESSAGE=generic
 fi
 
 debug Try to post the status
 _POST_COUNTER=0
 _POST_MESSAGE_SENT=0
-until curl -f -s -X POST "${_slack_webhook}" -H "Content-Type: application/json" --data "{\"text\": \"A terminate-notice was received at ${_HOSTNAME}.\"}"
+until curl -f -s -X POST "${_slack_webhook}" -H "Content-Type: application/json" --data "{\"text\": \"A ${_MESSAGE} was received at ${_HOSTNAME}.\"}"
 do
     _POST_COUNTER=$((_POST_COUNTER+1))
     if [ $_POST_MESSAGE_SENT -eq 0 ] && [ $_POST_COUNTER -eq 1 ]
     then
-        echo "Action $(basename "$0")-$VERSION - WARNING: Waiting for the Slack Webhook to become available."
+        warning "$(basename "$0")-$VERSION" Waiting for the Slack Webhook to become available.
         _POST_MESSAGE_SENT=1
     elif [ $_POST_MESSAGE_SENT -eq 1 ] && [ $_POST_COUNTER -eq 5 ]
     then
-        error 2 "$(basename "$0")-$VERSION" "Failed to send"
+        error 2 "$(basename "$0")-$VERSION" Failed to send
         exit 5
     fi
     sleep 2
